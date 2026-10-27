@@ -1,0 +1,68 @@
+Session launcher (experimental; hardware validation pending)
+
+PC: ./session.sh start        (fresh boot: full acquisition pipeline)
+    ./session.sh resume       (re-attach to a retained session; no re-acquisition)
+The existing switchlab namespace and its isolated Ethernet network must be ready.
+
+ONE TIME: append the dial entry defs from GO2.bas (GO2 + GO2DIAL) to the saved
+NS2 program on the console, then save NS2. Keep pairing.json: it contains the
+matching reusable token. The short V=GO() helper (GO.bas) is generated per
+session by the host and is gitignored — it carries the live token; never commit it. It is not an address
+cache; fresh console memory addresses are still discovered and validated each run.
+Also insert REMOVE NSR,&H60000000,&H3FFFFFFF immediately after
+PRINT "DIST BOOT READY",1015 and before the first END in NS2, then save.
+
+The saved NS2 program must be the resume-aware bootstrap (START re-dials from
+PHASE 6 and RPC auto-reconnects after a host loss). The current text is written
+to the console save as TXT:NS2 by probe-save-update.cjs; the previous version is
+kept as TXT:NS2BAK for rollback (LOAD "TXT:NS2BAK").
+
+AFTER EACH CONSOLE REBOOT, open SmileBASIC Direct mode:
+  LOAD "TXT:NS2"
+  RUN
+RUN now performs REMOVE itself and stops at the expected Out of memory error.
+Do not issue REMOVE separately, and do not RUN again in the same app process.
+  V=GO2()
+
+Wait for SESSION READY on the PC. This means that the complete exploit and FS
+instruction proof passed and access is being kept open.
+
+Restarting the PC host does NOT need console-side steps anymore: with the
+resume-aware bootstrap the console retries the dial by itself. Run
+./session.sh resume on the PC and wait for the reconnect (V=GO2() also re-dials).
+Resume keeps every console-side artifact: retained memory endpoint, RO payload,
+owned FS root and the candidate cache slot. It does not re-run acquisition;
+retargeting the memory window is unavailable while resumed.
+
+PC controls from another terminal:
+  ./session.sh status   Check the live bridge and retained memory endpoint.
+  ./session.sh probe    Run fresh native FS challenges and restore instructions.
+  ./session.sh stop     Request cleanup; wait for host success before restarting.
+  ./session.sh resume   Re-attach to the retained session after a host restart.
+
+Console command handlers hot-reload: edit
+runs/<session>/switch2/memory/fs-root-control.cjs (or retained-memory.cjs) and
+the next memory-socket request picks up the change. No restart needed.
+
+Keep SmileBASIC open, Ethernet attached and the PC host running. This is a
+retained tethered session, not reboot persistence or an installed CFW. Sleep,
+app closure and disconnection recovery are not verified. After a failed run,
+restart the console and use a fresh start. Stopping the host with Ctrl+C is
+not a substitute for the stop command and confirmed cleanup.
+
+Post-READY session-strength check (per boot): the memory-side root session's
+effective identity is boot-dependent (upstream first-stage FullPermission
+promotion vs plain app identity). Right after SESSION READY, run
+root-open + root-probe-bis {id:30}: result 0 = strong (BIS-capable) session —
+proceed with @User:/ content mounts; 0x320002 = weak session — reboot and
+re-dance before attempting content work. (Details: FINDINGS.md, 2026-10-24.)
+
+Post-READY identity promotion (run before any BIS/content work):
+  sudo -n ip netns exec switchlab runuser -u nlight -- node tools/memory/fix-session-identity.cjs
+Promotes a weak boot's root session (app-identity) to the full-trust helper
+pid in-band: scans the recorded root-object graph for the current-process pid
+fields, rewrites them with compare-verified writes, and verifies (cmd 2 must
+fail 0x1408; OpenBisFileSystem(30) must open). Never re-run root-initialize
+after it. Pass --pid <n> to adopt a different process identity instead of the
+helper (e.g. am's pid, found via the pm:dmnt id-7 pid sweep, for content
+authorization experiments).

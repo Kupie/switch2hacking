@@ -1,0 +1,13 @@
+Generated with the built-in imagegen tool. Visual reference only; the animation is implemented independently in SVG. The generated geometry is not evidence of the exploit's memory layout.
+
+Create a polished art-direction reference for a minimal educational motion graphic about computer memory. A single 16:9 frame, styled like a beautifully typeset technical textbook diagram. Opaque warm ivory background (#F5F3EE). Absolutely flat, crisp 2D vector-style drawing, precise thin graphite outlines, sharp typography, no texture, no blur, no glow, no shadows, no transparency effects, no 3D.
+
+Use generous whitespace. Small title in the upper left: "When a pointer changes". Center the actual diagram prominently, not a dashboard or slide layout.
+
+Diagram geometry: across the upper-middle, a horizontal rectangular buffer on the left, an obvious small dashed vertical boundary, a short gap marked with a tiny ellipsis, then a compact cache metadata rectangle on the right. Label above the left rectangle "Path buffer", above the right "Cache entry". Inside the left buffer are eight uniform small salmon squares, progressing left to right; three additional salmon squares extend beyond the dashed boundary toward the right rectangle. In the cache rectangle show ONE small salmon-outlined field labeled "pointer". It is metadata only: do not put cached file contents inside the cache entry.
+
+Below the upper row are two independent small blocks: the lower-left labeled "Cached bytes", containing four muted-teal square tiles; the lower-right labeled "Other fs memory", containing four muted-amber square tiles. A faint dashed graphite curved arrow leads from the pointer field to Cached bytes, showing its old destination. A clear solid salmon curved arrow leads from the SAME pointer field to Other fs memory, showing its new destination. Curves should be smooth and carefully routed without crossing text. A tiny "before" by the dashed curve and "after" by the solid curve. Make the two destinations and shared arrow origin unambiguous.
+
+Below the diagram one short sentence: "Same operation. Different destination."
+
+Typography: clean professional sans-serif, graphite text, generous spacing, accurate readable labels. Palette limited to ivory, graphite, muted teal, soft salmon, muted amber. The final reference should feel quiet, precise, modern, beautifully balanced and easily reproducible as animated SVG. No extra labels, no borders around the whole frame, no legends, no UI controls, no decorative flourishes. This is a visual concept, not a literal memory dump.

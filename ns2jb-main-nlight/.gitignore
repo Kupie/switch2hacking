@@ -1,0 +1,31 @@
+# Large, reproducible-or-bulk artifacts stay out of version control.
+runs/
+dumps/
+*.log
+*.events.jsonl
+node_modules/
+nohup.out
+__pycache__/
+# Scratch binaries, except the tracked test payload.
+*.bin
+!engine/switch2/process/test-function.bin
+# Local lab state (contains the reusable pairing token — never commit).
+pairing.json
+latest-session.json
+connect-go2.txt
+GO.bas
+# Firmware-derived captures and per-console material — never publish.
+fw23/
+npdm-captures/
+*.npdm
+# Reversing workspace + image/photo bulk — local only.
+fw-re/
+re-study/
+photos/
+diffs/
+# Personal work state.
+/STATUS.md
+/TODO.md
+# Local agent state + private attic (originals, bulk experiments, private notes).
+.pi/
+attic/

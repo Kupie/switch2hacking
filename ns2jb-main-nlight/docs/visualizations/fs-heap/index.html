@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>When a pointer changes</title>
+<style>
+:root{color-scheme:dark;--paper:#101720;--ink:#e1e8ef;--muted:#99a8b8;--line:#425362;--teal:#71c7b6;--coral:#ef927f;--gold:#d9b674}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,sans-serif;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center}main{width:min(1600px,100vw)}svg{width:100%;height:auto;display:block}svg text{font-family:Arial,sans-serif}nav{display:flex;align-items:center;gap:18px;padding:18px 4%;border-top:1px solid #2b3947}button,select{font:inherit;font-size:14px;background:transparent;border:1px solid var(--line);border-radius:5px;padding:9px 13px;color:var(--ink);cursor:pointer}button:hover,select:hover{border-color:var(--ink)}input{flex:1;min-width:80px;accent-color:var(--teal)}output{font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}#play{min-width:80px;background:var(--ink);border-color:var(--ink);color:var(--paper)}button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--teal);outline-offset:4px}details{margin:0 4% 25px;font-size:14px;line-height:1.65;color:#a1afbd;max-width:1100px}summary{cursor:pointer;color:var(--muted)}details a{color:#71c7b6}details p{max-width:900px}body.capture nav,body.capture details{display:none}body.capture main{width:100vw}body.capture{overflow:hidden}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}@media(max-width:650px){nav{gap:8px;flex-wrap:wrap}#seek{min-width:120px}#fullscreen{display:none}}
+</style></head><body><main>
+<svg id="film" viewBox="0 0 1600 900" role="img" aria-labelledby="film-title film-desc">
+<title id="film-title">When a pointer changes</title><desc id="film-desc">A minimal continuous model of a filesystem heap overflow: path bytes cross a buffer boundary, corrupt cache metadata, redirect a data pointer, and enable reusable memory access through two cache entries.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="context-stroke"/></marker></defs>
+<rect width="1600" height="900" fill="#101720"/>
+<g id="scene"></g>
+<text id="caption" x="800" y="804" font-size="28" fill="#e1e8ef" text-anchor="middle"></text>
+<rect x="100" y="854" width="1400" height="2" fill="#2b3947"/><rect id="progress" x="100" y="854" width="0" height="2" fill="#71c7b6"/>
+</svg>
+<nav aria-label="Animation controls"><button id="play">Pause</button><input id="seek" aria-label="Timeline in seconds" type="range" min="0" max="40" step="0.01"><output id="time"></output><label for="rate" class="sr-only">Playback speed</label><select id="rate" title="Playback speed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option></select><button id="fullscreen">Fullscreen</button></nav>
+<details><summary>About this model &amp; controls</summary>
+<p>Space pauses or plays. Arrow keys seek. R replays. Motion starts paused when reduced motion is requested.</p>
+<p>The upper enclosure is a magnified region of the fs heap, with neighboring allocations, compressed intervening chunks, and one owned cache array. The brief miss/reach comparison shows the same copy length against two hypothetical target placements; it is not an animation of live allocations moving. Chunk counts, sizes and distances are schematic. The two lower blocks are other locations in the same process address space. Squares occupy fixed slots representing groups of bytes; small moving dots show transfers along pointer arrows. The cache byte strip and the decoded fields beneath it are two views of the same metadata, not separate allocations. The outlined tray above the cache shows bytes returned by a read or supplied for a write.</p>
+<p>This version adds concise field and placement context to the core idea. The real acquisition also qualifies heap placement with a canary, proves a clean cache alias, and satisfies range, bucket and dirty-state constraints before memory access works. The copy shown here compresses multiple qualified operations. A successful placement is assumed; adjacency is not guaranteed. A pointer edit alone is not the entire exploit.</p>
+<p>Each card groups one entry’s range, state and address. “Dirty” marks modified cache data. The fields are simplified; range matching and buffer-address calculation still have additional constraints. The second entry occupies existing space in the owned cache array. The retained control channel maps metadata, while the data channel accesses the selected memory. The underlying implementation also verifies its reads and writes and handles cleanup loops. Those details are in the <a href="README.md">source notes</a>. This is a source-based schematic, not a new console capture, and it stops at fs process memory access.</p>
+<p><a href="captions.vtt" download>Timed captions</a> · <a href="design-reference.txt">Imagegen reference prompt</a></p>
+</details></main>
+<script>
+'use strict';
+const C={paper:'#101720',ink:'#e1e8ef',muted:'#99a8b8',line:'#425362',teal:'#71c7b6',coral:'#ef927f',gold:'#d9b674',pale:'#253240'};
+const duration=40;
+const cues=[
+ {start:0,end:6,text:'On a cache hit, the entry’s pointer selects the bytes returned by a file read.'},
+ {start:6,end:10,text:'Placement is checked first: the overflow must reach an owned cache entry.'},
+ {start:10,end:14,text:'The path-normalization copy exceeds its 0x301-byte temporary buffer.'},
+ {start:14,end:18,text:'Forged range, dirty state and pointer make the cache hit reach fs memory.'},
+ {start:18,end:23,text:'The same read now returns bytes from fs memory.'},
+ {start:23,end:29,text:'CONTROL maps cache metadata. DATA maps the selected memory.'},
+ {start:29,end:35,text:'CONTROL changes the pointer. DATA reads or writes through it.'},
+ {start:35,end:38,text:'The marker matched. Now restore the original bytes.'},
+ {start:38,end:40,text:'Change the pointer. Change where the bytes go.'}
+];
+const chapters=cues.map(c=>({start:c.start,duration:c.end-c.start,name:c.text}));
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const ease=v=>{v=clamp(v);return v*v*(3-2*v)};
+const ramp=(t,a,b)=>ease((t-a)/(b-a));
+const mix=(a,b,p)=>a+(b-a)*p;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+const text=(x,y,s,size=24,color=C.ink,extra='')=>`<text x="${x}" y="${y}" font-size="${size}" fill="${color}" ${extra}>${esc(s)}</text>`;
+const rect=(x,y,w,h,fill='none',stroke=C.line,r=3,extra='')=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}" stroke="${stroke}" stroke-width="1.7" ${extra}/>`;
+const group=(a,s)=>`<g opacity="${clamp(a)}">${s}</g>`;
+const line=(d,color=C.ink,width=2,extra='')=>`<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" ${extra}/>`;
+const tile=(x,y,color,size=29)=>rect(x,y,size,size,color,'none',3);
+const slot=(x,y,color,size=34)=>rect(x,y,size,size,C.paper,C.line,4)+ (color?tile(x+4,y+4,color,size-8):'');
+const row=(x,y,colors,size=34,gap=13)=>colors.map((c,i)=>slot(x+i*(size+gap),y,c,size)).join('');
+const cached=[C.teal,'#91d6c7','#509f94','#b2e3d5'],memory=[C.gold,'#e3c995','#b89455','#f0ddb1'],marker=[C.coral,'#f1b2a3','#cc7365','#f5cebf'];
+const first={x:1010,y:449},second={x:1270,y:449},file={x:745,y:620},mem={x:1270,y:620};
+const pathD=q=>`M${q[0].x} ${q[0].y} C${q[1].x} ${q[1].y} ${q[2].x} ${q[2].y} ${q[3].x} ${q[3].y}`;
+const curve=(from,to,depth=545)=>[from,{x:from.x,y:depth},{x:to.x,y:depth},to];
+function point(q,t){const a=1-t;return {x:a*a*a*q[0].x+3*a*a*t*q[1].x+3*a*t*t*q[2].x+t*t*t*q[3].x,y:a*a*a*q[0].y+3*a*a*t*q[1].y+3*a*t*t*q[2].y+t*t*t*q[3].y}}
+const arrow=(q,color,opacity=1,extra='')=>group(opacity,line(pathD(q),color,2.8,`marker-end="url(#arrow)" ${extra}`));
+function bytes(q,p,colors,reverse=false){let s='';for(let j=0;j<4;j++){const u=p-j*.045;if(u<0||u>1)continue;const a=point(q,reverse?1-u:u);s+=`<circle cx="${a.x}" cy="${a.y}" r="5" fill="${colors[j]}"/>`}return s}
+const controlQ=[first,{x:1010,y:545},{x:1175,y:545},{x:1175,y:435}];
+function read(t,begin,q,colors){const age=t-begin;return age>=0&&age<2.6?bytes(q,age/2.2,colors,true):''}
+function write(t,begin,colors){const age=t-begin;return age>=0&&age<2.6?bytes(curve(second,mem),age/2.2,colors):''}
+function renderAt(input){const t=clamp(input,0,duration);now=t;
+ const turn=ramp(t,14,17),pair=ramp(t,24.8,25.5),control=ramp(t,26,28.5);
+ const target={x:mix(file.x,mem.x,turn),y:620};const pointer=curve(first,target);
+ const copying=ramp(t,6,6.8)*(1-ramp(t,14,15)),front=mix(195,1080,ramp(t,6.5,13.4));
+ let s='';
+ // A bounded heap region gives the byte lane allocation-level context.
+ s+=rect(100,257,1400,230,'#121c27','#344553',8);
+ s+=text(100,222,'fs heap · a magnified region',20,C.ink);
+ s+=line('M420 216 H790',C.muted,1.2,'marker-end="url(#arrow)"');
+ s+=text(605,202,'increasing addresses',13,C.muted,'text-anchor="middle"');
+ s+=rect(114,315,39,110,'#1b2733','#344553',3)+text(133,377,'···',20,C.muted,'text-anchor="middle"');
+ s+=rect(1410,315,75,110,'#1b2733','#344553',3)+text(1447,377,'···',20,C.muted,'text-anchor="middle"');
+ s+=rect(628,315,254,110,'#18232f','#344553',3);
+ s+=line('M697 315 V425 M793 315 V425','#344553',1);
+ s+=text(755,401,'intervening chunks',15,C.muted,'text-anchor="middle"');
+ // One enclosing allocation holds both cache entries, including unused space.
+ s+=rect(891,303,508,174,'none','#526577',5)+text(1395,297,'owned cache array',12,C.muted,'text-anchor="end"');
+ s+=group(1-pair,text(1260,352,'reserved entry space',15,C.muted,'text-anchor="middle"')
+  +text(1260,378,'same cache array',14,C.muted,'text-anchor="middle"'));
+ // Fixed geometry; the dashed boundary is the actual end of the drawn buffer.
+ s+=text(170,285,'path buffer',28)+rect(170,315,440,110,'none',C.ink)+text(170,454,'0x301 bytes · temporary allocation',17,C.muted);
+ s+=line('M610 300 V444',front>610&&copying>.1?C.coral:C.muted,1.8,'stroke-dasharray="5 7"');
+
+ const changed=t>=13.4;
+ // Each card is one entry. Its role and its address field are distinct.
+ const entry=(x,role,range,state,destination,color,alpha=1)=>group(alpha,
+  text(x,285,role,23,color)+rect(x,315,230,155,'#151f2a',C.line,6)
+  +row(x+25,337,Array.from({length:4},(_,j)=>x===900?(t>=13.4||front>=953+j*41? (control>.5?C.teal:C.coral):C.teal):C.gold),28,13)
+  +line(`M${x+15} 375 H${x+215}`,C.line,1)
+  +text(x+15,390,'RANGE',11,C.muted)+text(x+78,390,range,15,C.ink)
+  +text(x+15,412,'STATE',11,C.muted)+text(x+78,412,state,15,changed?C.coral:C.muted)
+  +rect(x+15,422,200,27,changed&&control<.5?'#39272b':'#1b2934',color,3)
+  +text(x+25,441,'address',14,C.muted)+text(x+205,441,destination,14,color,'text-anchor="end"')
+  +`<circle cx="${x+110}" cy="449" r="4.5" fill="${color}"/>`);
+ s+=entry(900,control>.5?'CONTROL entry':'cache entry',control>.5?'cache metadata':changed?'selected range':'file block',changed?'dirty · modified':'clean',control>.5?'DATA address':turn>.5?'fs memory':'cached bytes',control>.5?C.teal:changed?C.coral:C.teal);
+ s+=entry(1160,'DATA entry','selected range','dirty · modified','fs memory',C.gold,pair);
+ // Same four cached bytes and four process-memory bytes stay anchored on screen.
+ s+=text(745,734,'cached bytes',25,C.muted,'text-anchor="middle"')+rect(630,620,230,75)+row(651,640,cached);
+ const memoryColors=memory.map((c,j)=>t>=33.2+j*.099&&t<37.2+j*.099?marker[j]:c);
+ s+=text(1270,734,'fs memory',25,C.ink,'text-anchor="middle"')+rect(1155,620,230,75,'none',turn>.8?C.gold:C.line)+row(1176,640,memoryColors);
+ let note=[];
+ if(t<6)note=['A cache entry describes a file range','and where its cached bytes live.'];
+ else if(t<10)note=['Layout determines what the overflow reaches.','A canary checks the target placement.'];
+ else if(t<14)note=['The copy crosses allocation boundaries.','Chunk sizes and distances are schematic.'];
+ else if(t<18)note=['Dirty = pending cache changes.','The forged address redirects the cache hit.'];
+ else if(t<23)note=['Same file-read interface.','Different source: memory inside fs.'];
+ else if(t<29)note=['Two entries in one owned cache array.','Control edits the data entry’s address.'];
+ else if(t<35)note=['Retargeting uses ordinary storage writes.','No new pathname corruption is needed.'];
+ else note=['Readback and restoration are verified.','Memory access is not kernel execution.'];
+ s+=text(170,525,note[0],20,C.ink)+text(170,556,note[1],19,C.muted);
+ // Compare layouts without pretending live allocations slide through memory.
+ if(t>=6&&t<14){
+  let comparison='';
+  for(const [y,targetX,label] of [[600,490,'miss'],[646,370,'reach']]){
+   comparison+=text(170,y+16,label,15,C.muted)+rect(232,y,330,24,'#18232f',C.line,2);
+   comparison+=rect(232,y,66,24,'#27333f',C.muted,2);
+   comparison+=rect(targetX,y,54,24,'#283d39',C.teal,2);
+   comparison+=text(265,y-6,'buffer',11,C.muted,'text-anchor="middle"')+text(targetX+27,y-6,'cache',11,C.teal,'text-anchor="middle"');
+   comparison+=line(`M299 ${y+12} H${mix(300,443,ramp(t,6.7,9))}`,C.coral,3,'marker-end="url(#arrow)"');
+  }
+  comparison+=text(232,696,'same copy length · different target placement',13,C.muted);
+  s+=group(ramp(t,6,6.5)*(1-ramp(t,13.5,14)),comparison);
+ }
+
+ // Previous destination is shown only while the pointer swings to a new destination.
+ if(t>=14&&t<20)s+=arrow(curve(first,file),C.muted,.4*(1-ramp(t,18,20)),'stroke-dasharray="5 8"');
+ s+=arrow(pointer,turn>.4?C.coral:C.teal,1-control);
+ s+=arrow(curve(second,mem),C.gold,pair);
+ s+=arrow(controlQ,C.teal,control);
+ // The copy fills fixed byte slots; metadata text is outside this strip.
+ for(let j=0;j<10;j++){
+  const x=195+j*41;
+  s+=slot(x,337,t>=6.5&&front>=x+28?C.coral:null,28);
+ }
+ // Moving cubes expose the overflow across the boundary, in a dedicated byte lane.
+ // The bridge is schematic: it does not claim a count of intervening allocations.
+ s+=group(copying*ramp(front,610,640),line('M620 351 H890',C.coral,1,'stroke-dasharray="3 8"'));
+ let overflowCubes='';
+ if(t>=6.5&&t<13.4){
+  // The leading cube advances through the buffer and then lands in metadata slots.
+  if(front<925)overflowCubes+=tile(front+4,341,C.coral,20);
+  for(let x=front-41;x>610;x-=41){
+   if(x<895)overflowCubes+=tile(x+4,341,C.coral,20);
+  }
+  if(front>=925&&front<1076){
+   const j=Math.min(3,Math.floor((front-925)/41));
+   const x=925+j*41;
+   if(front<x+28)overflowCubes+=tile(x+4,341,C.coral,20);
+  }
+ }
+ s+=group(copying,overflowCubes);
+ if(t>=13.4&&t<15.2)s+=group(1-ramp(t,14,15.2),rect(912,419,206,33,'none',C.coral,3,'stroke-width="2.5"'));
+ // A small tray is the read result / write input, not another memory allocation.
+ let result=cached.map((c,j)=>t>=3.7+j*.099?c:C.pale);
+ if(t>=18&&t<31)result=memory.map((c,j)=>t>=21.2+j*.099?c:C.pale);
+ if(t>=31&&t<35)result=marker;
+ if(t>=33.6&&t<35)result=marker.map((c,j)=>t>=34.65+j*.045?c:C.pale);
+ if(t>=35)result=memory;
+ s+=text(900,187,t>=38?'original bytes':t>=33.6&&t<35?'readback':t>=31?'write bytes':'read result',17,C.muted)+rect(900,203,220,46,'none',C.line)+row(914,213,result,26,25);
+ s+=read(t,1.5,curve(first,file),cached)+read(t,19,curve(first,mem),memory);
+ // Installing the second descriptor is schematic: it uses existing cache-array space.
+ if(t>=23&&t<26)s+=bytes([first,{x:1010,y:545},{x:1185,y:545},{x:1175,y:435}],(t-23)/1.8,[C.teal,C.teal,C.gold,C.gold]);
+ if(t>=29&&t<31)s+=bytes(controlQ,(t-29)/1.4,[C.gold,C.gold,C.gold,C.gold]);
+ s+=write(t,31,marker)+write(t,35,memory);
+ if(t>=33.6&&t<35){
+  const age=t-33.6;
+  s+=bytes(curve(second,mem),age/1.05,marker,true);
+ }
+ document.getElementById('scene').innerHTML=s;
+ const index=Math.max(0,cues.findLastIndex(c=>t>=c.start)),caption=cues[index].text;
+ document.getElementById('caption').textContent=caption;
+ document.getElementById('progress').setAttribute('width',String(1400*t/duration));
+ document.getElementById('seek').value=t;
+ document.getElementById('seek').setAttribute('aria-valuetext',clock(t)+' · '+caption);
+ document.getElementById('time').textContent=clock(t)+' / '+clock(duration);
+ document.getElementById('play').textContent=playing?'Pause':t>=duration?'Replay':'Play';
+ document.getElementById('play').setAttribute('aria-label',playing?'Pause animation':'Play animation');
+ return {time:t,chapter:index,duration};
+}
+function clock(t){return Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0')}
+let now=0,last=performance.now(),rate=1,playing=!matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(new URLSearchParams(location.search).has('capture')){document.body.classList.add('capture');playing=false}
+window.renderAt=renderAt;window.animation={duration,chapters,cues};
+function toggle(){if(now>=duration)now=0;playing=!playing;last=performance.now();renderAt(now)}
+document.getElementById('play').onclick=toggle;
+document.getElementById('seek').oninput=e=>{playing=false;renderAt(Number(e.target.value))};
+document.getElementById('rate').onchange=e=>{rate=Number(e.target.value);last=performance.now()};
+document.getElementById('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.querySelector('main').requestFullscreen()}catch{document.getElementById('fullscreen').textContent='Unavailable'}};
+window.addEventListener('keydown',e=>{if(['INPUT','BUTTON','SELECT','SUMMARY'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();toggle()}if(e.code==='KeyR'){e.preventDefault();playing=true;renderAt(0);last=performance.now()}if(e.code==='ArrowLeft'){e.preventDefault();renderAt(now-3)}if(e.code==='ArrowRight'){e.preventDefault();renderAt(now+3)}});
+function tick(ts){const delta=(ts-last)/1000;last=ts;if(playing){renderAt(now+delta*rate);if(now>=duration){playing=false;renderAt(duration)}}requestAnimationFrame(tick)}
+renderAt(0);requestAnimationFrame(tick);
+</script></body></html>

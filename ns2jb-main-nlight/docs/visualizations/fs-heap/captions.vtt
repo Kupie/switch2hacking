@@ -1,0 +1,28 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:06.000
+On a cache hit, the entry’s pointer selects the bytes returned by a file read.
+
+00:00:06.000 --> 00:00:10.000
+Placement is checked first: the overflow must reach an owned cache entry.
+
+00:00:10.000 --> 00:00:14.000
+The path-normalization copy exceeds its 0x301-byte temporary buffer.
+
+00:00:14.000 --> 00:00:18.000
+Forged range, dirty state and pointer make the cache hit reach fs memory.
+
+00:00:18.000 --> 00:00:23.000
+The same read now returns bytes from fs memory.
+
+00:00:23.000 --> 00:00:29.000
+CONTROL maps cache metadata. DATA maps the selected memory.
+
+00:00:29.000 --> 00:00:35.000
+CONTROL changes the pointer. DATA reads or writes through it.
+
+00:00:35.000 --> 00:00:38.000
+The marker matched. Now restore the original bytes.
+
+00:00:38.000 --> 00:00:40.000
+Change the pointer. Change where the bytes go.

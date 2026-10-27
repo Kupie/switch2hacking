@@ -1,0 +1,43 @@
+{
+  "platform": 2,
+  "programId": "0400000000000037",
+  "previousPayloads": [
+    "ab367c0ec88ca8396f6a9c08046732790ed14d18d788f09139ed411e3d2da7e4",
+    "636eb43aa8b0d117b9fa9ab1dc52eff905a46ef8941b36a2158beac63826d0ef",
+    "cd9801e782cc534a128983f2a60cf1986268a168fb3b0bcff46bfec4453eb83b",
+    "b7a4c0935518af44e3728ce71fb533e0b60d156064aaabbd2ae91c9d30637b68",
+    "68269afcda45fa20d44a39b997e75205c6cb9777c21119a946813aa9d2d04ff7",
+    "4da6cf33be93969719bc24b6c679456791b1c553825833361f371fdcac43c857",
+    "23758445a954ae5ee7688111583b9ccb60c9a641ffb1fa75e3422c4ce18f1b39",
+    "b59601c5511b9cc33293fde19e1552abfd43edc00a6a26cfca71abde79ba1186"
+  ],
+  "payloadBytes": 11617,
+  "payloadSha256": "46541997e58c2ae20bb1c3d2125c8da7745a0636c44a1ec091b7a87bcdafc07e",
+  "policySha256": "f63138f1e3f747af5e881c2402d30762e338c372c34069b2e20f1f28198865de",
+  "policies": {
+    "0400000000000036": {
+      "npdm": "bfd263ac5f251efa7ef80c05a1b40270b4da9f9e70f5257ec7352220c5a5374e",
+      "payload": "dbdd3bcaeebf14bd9630c89b7ebe0217f193087c79e966adf6ef6b2a80e3c734",
+      "payloadBytes": 2584,
+      "payloadFile": "executor"
+    },
+    "0400000000000039": {
+      "npdm": "cd6004e457f27aa62beae71e06c8e9df0936ac9f05ce27c07b4e0b3b5e6e0545",
+      "payload": "6ff55040142e8eb85fb1b382db15082af8a5f60981c29e86cc7134af30c15b89",
+      "payloadBytes": 1692,
+      "payloadFile": "executor"
+    },
+    "0400c3f00006e000": {
+      "npdm": "bfd263ac5f251efa7ef80c05a1b40270b4da9f9e70f5257ec7352220c5a5374e",
+      "payload": "78431862efbb91387e1ad703dba320f25e094a346c20283c962d3775f12086a1",
+      "payloadBytes": 2048,
+      "payloadFile": "executor",
+      "note": "Mario Kart World app-title experiment: executor v10 death-clock under the MKW title (app context), creport-sac policy NPDM"
+    },
+    "0400000000000037": {
+      "npdm": "f45d2b77e0aad43577292d3b8ccd890f576c506952a1d2dba6aee7d8a31409a1",
+      "npdmFile": "payload/policy-0037-fspldr.npdm",
+      "note": "console-captured 0037 policy with FsAccess maskA patched to 0xC000000000000000 (bits 62+63 = boot partitions, per the live fs binary decode: FUN_59920f03d0 slot-1 check). The pid-8 monitor registration then satisfies the BIS 0/10 access test. 2026-10-26: idx-5 KC descriptor 0xa000002f -> 0xa000182f (svc 126+127 = CallSecureMonitor, both variants, both ACID+ACI0) \u2014 the smc-oracle capability for the key-derivation track. The debug-suite idx-4 (0x9f04d52f) stays inert in the monitor (death-#6 rule: never exercised from the rig loop). 2026-10-27: maskA |= 0x50 (bits 4 ContentData fsType 6 + 6 RegisteredUpdate fsType 8, both ACID+ACI0) \u2014 the game-RomFS content-mount gate (ns is the only stock module with bit 4; the E002 triangulation: MKW/self/MK8D all refused from the flags-0 monitor). | 2026-10-26: npdm-sac-patch.py adds fsp-ldr to both SACs (SAC entry = u8(len-1)+name, no control byte; KAC/FsAccess/prefix byte-identical, sizes re-fixed, ACID sig not re-signed \u2014 the launch path does not verify it). The GPU-ucode route: the monitor opens fsp-ldr (loader-trusted, NO 206/10 mask gates), OpenDataStorageByProgramId(0400000000000019) -> decrypted nvservices RomFS IStorage."
+    }
+  }
+}
